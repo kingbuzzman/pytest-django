@@ -12,7 +12,7 @@ import os
 import pathlib
 import sys
 import types
-from functools import reduce
+from functools import reduce, wraps
 from typing import TYPE_CHECKING, ContextManager, Generator, List, NoReturn
 
 import pytest
@@ -810,6 +810,7 @@ class DjangoDbBlocker:
                 "use the django_db_blocker fixture instead."
             )
 
+        self._connection_used = {}
         self._history = []  # type: ignore[var-annotated]
         self._real_ensure_connection = None
 
@@ -835,10 +836,16 @@ class DjangoDbBlocker:
             '"db" or "transactional_db" fixtures to enable it.'
         )
 
-    def unblock(self) -> ContextManager[None]:
+    def unblock(self, databases: list[str] | None=None) -> ContextManager[None]:
         """Enable access to the Django database."""
+        def use_it_or_lose_it(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs: Any) -> Any:
+                this = args[0]
+                self._connection_used[self.connection.name] = True
+                return func(*args, **kwargs)
         self._save_active_wrapper()
-        self._dj_db_wrapper.ensure_connection = self._real_ensure_connection
+        self._dj_db_wrapper.ensure_connection = use_it_or_lose_it(self._real_ensure_connection)
         return _DatabaseBlockerContextManager(self)
 
     def block(self) -> ContextManager[None]:

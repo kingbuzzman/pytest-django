@@ -197,7 +197,7 @@ def _django_db_helper(
         "django_db_serialized_rollback" in request.fixturenames
     )
 
-    with django_db_blocker.unblock():
+    with django_db_blocker.unblock(databases):
         import django.db
         import django.test
 
